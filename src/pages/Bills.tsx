@@ -39,9 +39,12 @@ export default function Bills() {
     if (!user) return;
     const num = parseFloat(form.amount.replace(",", "."));
     if (!form.description.trim() || !num || num <= 0) return toast.error("Preencha descrição e valor");
+    const totalParc = form.installments_total ? parseInt(form.installments_total) : null;
+    const paidParc = form.installments_paid ? parseInt(form.installments_paid) : 0;
     const payload = {
       user_id: user.id, description: form.description.trim(), amount: num,
       due_date: form.due_date, category_id: form.category_id || null, recurrence: form.recurrence,
+      installments_total: totalParc, installments_paid: paidParc,
     };
     const { error } = editing
       ? await supabase.from("bills").update(payload).eq("id", editing.id)
