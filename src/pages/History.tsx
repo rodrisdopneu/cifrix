@@ -1,0 +1,263 @@
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatBRL, monthLabel, startOfMonth, endOfMonth, toISODate } from "@/lib/format";
+import { ArrowDownCircle, ArrowUpCircle, TrendingUp, TrendingDown, Sparkles, History as HistoryIcon } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LineChart, Line, ReferenceLine } from "recharts";
+
+type MonthRow = { key: string; label: string; income: number; expense: number; balance: number; projected?: boolean };
+
+export default function History() {
+  const { user } = useAuth();
+  const [history, setHistory] = useState<MonthRow[]>([]);
+  const [projection, setProjection] = useState<MonthRow[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user) return;
+      setLoading(true);
+      const now = new Date();
+
+      // Past 12 months including current
+      const startRange = toISODate(startOfMonth(new Date(now.getFullYear(), now.getMonth() - 11, 1)));
+      const endRange = toISODate(endOfMonth(now));
+
+      const { data: tx } = await supabase
+        .from("transactions")
+        .select("amount, type, occurred_on")
+        .gte("occurred_on", startRange)
+        .lte("occurred_on", endRange);
+
+      const months: MonthRow[] = [];
+      for (let i = 11; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const inMonth = (tx ?? []).filter((t: any) => t.occurred_on.startsWith(key));
+        const income = inMonth.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        const expense = inMonth.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + Number(t.amount), 0);
+        months.push({
+          key,
+          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+          income,
+          expense,
+          balance: income - expense,
+        });
+      }
+      setHistory(months);
+
+      // Projection: average of last up-to-6 closed months + pending bills already scheduled
+      const closed = months.slice(0, -1); // exclude current month (incomplete)
+      const sample = closed.slice(-6).filter((m) => m.income + m.expense > 0);
+      const avgIncome = sample.length ? sample.reduce((s, m) => s + m.income, 0) / sample.length : 0;
+      const avgExpense = sample.length ? sample.reduce((s, m) => s + m.expense, 0) / sample.length : 0;
+
+      // Look ahead 6 months for pending bills
+      const futureEnd = toISODate(endOfMonth(new Date(now.getFullYear(), now.getMonth() + 6, 1)));
+      const today = toISODate(now);
+      const { data: bills } = await supabase
+        .from("bills")
+        .select("amount, due_date, status")
+        .eq("status", "pending")
+        .gte("due_date", today)
+        .lte("due_date", futureEnd);
+
+      const proj: MonthRow[] = [];
+      for (let i = 1; i <= 6; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const billsInMonth = (bills ?? [])
+          .filter((b: any) => b.due_date.startsWith(key))
+          .reduce((s: number, b: any) => s + Number(b.amount), 0);
+        const expense = Math.max(avgExpense, billsInMonth);
+        proj.push({
+          key,
+          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+          income: avgIncome,
+          expense,
+          balance: avgIncome - expense,
+          projected: true,
+        });
+      }
+      setProjection(proj);
+      setLoading(false);
+    };
+    load();
+  }, [user]);
+
+  const combined = useMemo(() => [...history, ...projection], [history, projection]);
+
+  const totals = useMemo(() => {
+    const closed = history.slice(0, -1);
+    const totalIn = closed.reduce((s, m) => s + m.income, 0);
+    const totalEx = closed.reduce((s, m) => s + m.expense, 0);
+    const months = Math.max(1, closed.length);
+    return {
+      avgIncome: totalIn / months,
+      avgExpense: totalEx / months,
+      avgBalance: (totalIn - totalEx) / months,
+      bestMonth: closed.reduce<MonthRow | null>((best, m) => (!best || m.balance > best.balance ? m : best), null),
+      worstMonth: closed.reduce<MonthRow | null>((worst, m) => (!worst || m.balance < worst.balance ? m : worst), null),
+    };
+  }, [history]);
+
+  const projectedBalance = projection.reduce((s, m) => s + m.balance, 0);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Histórico & Projeções</h1>
+        <p className="text-muted-foreground">Acompanhe a evolução e veja para onde sua vida financeira está indo.</p>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="stat-card">
+          <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Receita média</span><ArrowUpCircle className="h-4 w-4 text-income" /></div>
+          <div className="mt-2 text-xl font-display font-bold text-income">{formatBRL(totals.avgIncome)}</div>
+        </Card>
+        <Card className="stat-card">
+          <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Despesa média</span><ArrowDownCircle className="h-4 w-4 text-expense" /></div>
+          <div className="mt-2 text-xl font-display font-bold text-expense">{formatBRL(totals.avgExpense)}</div>
+        </Card>
+        <Card className="stat-card">
+          <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Saldo médio</span><TrendingUp className="h-4 w-4 text-primary" /></div>
+          <div className={`mt-2 text-xl font-display font-bold ${totals.avgBalance >= 0 ? "text-income" : "text-expense"}`}>{formatBRL(totals.avgBalance)}</div>
+        </Card>
+        <Card className="stat-card">
+          <div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Projeção 6 meses</span><Sparkles className="h-4 w-4 text-primary" /></div>
+          <div className={`mt-2 text-xl font-display font-bold ${projectedBalance >= 0 ? "text-income" : "text-expense"}`}>{formatBRL(projectedBalance)}</div>
+        </Card>
+      </div>
+
+      <Tabs defaultValue="history" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="history"><HistoryIcon className="h-4 w-4 mr-1" /> Histórico</TabsTrigger>
+          <TabsTrigger value="projection"><Sparkles className="h-4 w-4 mr-1" /> Projeção</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="history" className="space-y-4 mt-4">
+          <Card className="p-5">
+            <h3 className="font-display font-semibold mb-4">Últimos 12 meses</h3>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={history}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `R$${v / 1000}k`} />
+                  <Tooltip formatter={(v: number) => formatBRL(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12 }} />
+                  <Legend />
+                  <Bar dataKey="income" name="Receitas" fill="hsl(var(--income))" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="expense" name="Despesas" fill="hsl(var(--expense))" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card className="p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="text-left">
+                    <th className="px-4 py-3 font-medium">Mês</th>
+                    <th className="px-4 py-3 font-medium text-right">Receitas</th>
+                    <th className="px-4 py-3 font-medium text-right">Despesas</th>
+                    <th className="px-4 py-3 font-medium text-right">Saldo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.slice().reverse().map((m) => (
+                    <tr key={m.key} className="border-t border-border hover:bg-accent/30">
+                      <td className="px-4 py-3 capitalize font-medium">{m.label}</td>
+                      <td className="px-4 py-3 text-right text-income">{formatBRL(m.income)}</td>
+                      <td className="px-4 py-3 text-right text-expense">{formatBRL(m.expense)}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${m.balance >= 0 ? "text-income" : "text-expense"}`}>{formatBRL(m.balance)}</td>
+                    </tr>
+                  ))}
+                  {history.length === 0 && !loading && (
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">Sem dados ainda.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          {totals.bestMonth && totals.worstMonth && (
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Card className="stat-card">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground"><TrendingUp className="h-4 w-4 text-income" /> Melhor mês</div>
+                <div className="mt-1 text-lg font-display font-bold capitalize">{totals.bestMonth.label}</div>
+                <div className="text-income font-semibold">{formatBRL(totals.bestMonth.balance)}</div>
+              </Card>
+              <Card className="stat-card">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground"><TrendingDown className="h-4 w-4 text-expense" /> Pior mês</div>
+                <div className="mt-1 text-lg font-display font-bold capitalize">{totals.worstMonth.label}</div>
+                <div className={`font-semibold ${totals.worstMonth.balance >= 0 ? "text-income" : "text-expense"}`}>{formatBRL(totals.worstMonth.balance)}</div>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="projection" className="space-y-4 mt-4">
+          <Card className="p-5">
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <h3 className="font-display font-semibold">Projeção dos próximos 6 meses</h3>
+                <p className="text-xs text-muted-foreground">Baseada na média dos últimos meses + contas futuras já cadastradas.</p>
+              </div>
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={combined}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(v) => `R$${v / 1000}k`} />
+                  <Tooltip formatter={(v: number) => formatBRL(v)} contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 12 }} />
+                  <Legend />
+                  <ReferenceLine x={history[history.length - 1]?.label} stroke="hsl(var(--primary))" strokeDasharray="4 4" label={{ value: "Hoje", fill: "hsl(var(--primary))", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="income" name="Receitas" stroke="hsl(var(--income))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="expense" name="Despesas" stroke="hsl(var(--expense))" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="balance" name="Saldo" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card className="p-0 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50">
+                  <tr className="text-left">
+                    <th className="px-4 py-3 font-medium">Mês</th>
+                    <th className="px-4 py-3 font-medium text-right">Receita prevista</th>
+                    <th className="px-4 py-3 font-medium text-right">Despesa prevista</th>
+                    <th className="px-4 py-3 font-medium text-right">Saldo previsto</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projection.map((m) => (
+                    <tr key={m.key} className="border-t border-border hover:bg-accent/30">
+                      <td className="px-4 py-3 capitalize font-medium">{m.label}</td>
+                      <td className="px-4 py-3 text-right text-income">{formatBRL(m.income)}</td>
+                      <td className="px-4 py-3 text-right text-expense">{formatBRL(m.expense)}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${m.balance >= 0 ? "text-income" : "text-expense"}`}>{formatBRL(m.balance)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card className="stat-card bg-primary/5 border-primary/20">
+            <div className="text-sm text-muted-foreground">💡 Dica</div>
+            <p className="mt-1 text-sm">
+              A projeção usa a <strong>média dos últimos 6 meses fechados</strong>. Quando há contas futuras já cadastradas em um mês, o valor de despesa exibido é o maior entre a média e o total das contas previstas — assim você não é pego de surpresa.
+            </p>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
