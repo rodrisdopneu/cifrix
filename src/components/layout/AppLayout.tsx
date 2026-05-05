@@ -53,14 +53,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="p-3 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-2 py-2">
+          <button onClick={() => navigate("/perfil")} className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-sidebar-accent transition-colors text-left">
             <div className="h-9 w-9 rounded-full gradient-primary grid place-items-center text-white text-sm font-semibold">
               {name.slice(0, 1).toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium truncate">{name || "Usuário"}</div>
-              <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
+              <div className="text-xs text-muted-foreground truncate">Ver perfil</div>
             </div>
+          </button>
+          <div className="flex items-center justify-end gap-1 mt-1">
             <Button size="icon" variant="ghost" onClick={toggle} title="Alternar tema">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -71,9 +73,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       {/* Top bar Mobile */}
       <header className="md:hidden fixed top-0 inset-x-0 z-30 bg-background/80 backdrop-blur-xl border-b border-border h-14 flex items-center justify-between px-4">
-        <div className="flex items-center gap-2 font-display font-bold">
-          <div className="h-8 w-8 rounded-lg gradient-primary grid place-items-center text-white"><Wallet className="h-4 w-4" /></div>
-          MeuControle<span className="text-primary">+</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => navigate("/perfil")} className="h-9 w-9 rounded-full gradient-primary grid place-items-center text-white text-sm font-semibold shadow-glow" title="Meu perfil">
+            {name.slice(0, 1).toUpperCase() || "U"}
+          </button>
+          <div className="font-display font-bold">MeuControle<span className="text-primary">+</span></div>
         </div>
         <div className="flex items-center gap-1">
           <Button size="icon" variant="ghost" onClick={toggle} title="Alternar tema">
