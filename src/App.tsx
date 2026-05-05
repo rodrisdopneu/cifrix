@@ -9,6 +9,7 @@ import TransactionsPage from "./pages/TransactionsPage";
 import Bills from "./pages/Bills";
 import Goals from "./pages/Goals";
 import Budgets from "./pages/Budgets";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
