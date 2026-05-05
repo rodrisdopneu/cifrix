@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ArrowDownCircle, ArrowUpCircle, CalendarClock, Target, Wallet2, Settings, LogOut, Wallet, PiggyBank, Moon, Sun } from "lucide-react";
+import { LayoutDashboard, ArrowDownCircle, ArrowUpCircle, CalendarClock, Target, Wallet2, Settings, LogOut, Wallet, PiggyBank, Moon, Sun, LineChart } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,10 @@ const nav = [
   { to: "/contas", label: "Contas", icon: CalendarClock },
   { to: "/metas", label: "Metas", icon: Target },
   { to: "/orcamentos", label: "Orçamentos", icon: PiggyBank },
+  { to: "/historico", label: "Histórico", icon: LineChart },
 ];
 
-const mobileNav = nav.slice(0, 5);
+const mobileNav = [nav[0], nav[2], nav[3], nav[6], nav[4]];
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
