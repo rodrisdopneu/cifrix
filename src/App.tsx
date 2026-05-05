@@ -9,6 +9,7 @@ import TransactionsPage from "./pages/TransactionsPage";
 import Bills from "./pages/Bills";
 import Goals from "./pages/Goals";
 import Budgets from "./pages/Budgets";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/contas" element={<Protected><Bills /></Protected>} />
           <Route path="/metas" element={<Protected><Goals /></Protected>} />
           <Route path="/orcamentos" element={<Protected><Budgets /></Protected>} />
+          <Route path="/perfil" element={<Protected><Profile /></Protected>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
