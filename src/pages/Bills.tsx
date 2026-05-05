@@ -153,6 +153,7 @@ export default function Bills() {
                     <div className="text-xs text-muted-foreground">
                       {isPaid ? `Pago em ${formatDate(b.paid_on)}` : isOverdue ? `Atrasada ${Math.abs(days)}d` : days === 0 ? "Vence hoje" : `Em ${days}d • ${formatDate(b.due_date)}`}
                       {b.categories?.name && ` • ${b.categories.name}`}
+                      {b.installments_total ? ` • ${b.installments_paid ?? 0}/${b.installments_total} (faltam ${Math.max(0, b.installments_total - (b.installments_paid ?? 0))})` : ""}
                     </div>
                   </div>
                 </div>
