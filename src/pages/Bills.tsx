@@ -75,7 +75,7 @@ export default function Bills() {
 
   const startEdit = (b: any) => {
     setEditing(b);
-    setForm({ description: b.description, amount: String(b.amount), due_date: b.due_date, category_id: b.category_id ?? "", recurrence: b.recurrence });
+    setForm({ description: b.description, amount: String(b.amount), due_date: b.due_date, category_id: b.category_id ?? "", recurrence: b.recurrence, installments_total: b.installments_total ? String(b.installments_total) : "", installments_paid: String(b.installments_paid ?? 0) });
     setOpen(true);
   };
 
