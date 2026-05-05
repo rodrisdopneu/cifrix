@@ -13,7 +13,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
-type Bill = { id?: string; description: string; amount: string; due_date: string; category_id: string; recurrence: "none" | "weekly" | "monthly" | "yearly"; status?: string };
+type Bill = { id?: string; description: string; amount: string; due_date: string; category_id: string; recurrence: "none" | "weekly" | "monthly" | "yearly"; installments_total: string; installments_paid: string; status?: string };
 
 export default function Bills() {
   const { user } = useAuth();
@@ -22,7 +22,7 @@ export default function Bills() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
 
-  const empty: Bill = { description: "", amount: "", due_date: toISODate(new Date()), category_id: "", recurrence: "none" };
+  const empty: Bill = { description: "", amount: "", due_date: toISODate(new Date()), category_id: "", recurrence: "none", installments_total: "", installments_paid: "0" };
   const [form, setForm] = useState<Bill>(empty);
 
   const load = async () => {
@@ -39,9 +39,12 @@ export default function Bills() {
     if (!user) return;
     const num = parseFloat(form.amount.replace(",", "."));
     if (!form.description.trim() || !num || num <= 0) return toast.error("Preencha descrição e valor");
+    const totalParc = form.installments_total ? parseInt(form.installments_total) : null;
+    const paidParc = form.installments_paid ? parseInt(form.installments_paid) : 0;
     const payload = {
       user_id: user.id, description: form.description.trim(), amount: num,
       due_date: form.due_date, category_id: form.category_id || null, recurrence: form.recurrence,
+      installments_total: totalParc, installments_paid: paidParc,
     };
     const { error } = editing
       ? await supabase.from("bills").update(payload).eq("id", editing.id)
@@ -52,9 +55,11 @@ export default function Bills() {
 
   const togglePaid = async (b: any) => {
     if (b.status === "paid") {
-      await supabase.from("bills").update({ status: "pending", paid_on: null }).eq("id", b.id);
+      const newPaid = Math.max(0, (b.installments_paid ?? 0) - 1);
+      await supabase.from("bills").update({ status: "pending", paid_on: null, installments_paid: newPaid }).eq("id", b.id);
     } else {
-      await supabase.from("bills").update({ status: "paid", paid_on: toISODate(new Date()) }).eq("id", b.id);
+      const newPaid = (b.installments_paid ?? 0) + 1;
+      await supabase.from("bills").update({ status: "paid", paid_on: toISODate(new Date()), installments_paid: newPaid }).eq("id", b.id);
       await supabase.from("transactions").insert({
         user_id: user!.id, type: "expense", amount: Number(b.amount),
         description: b.description, category_id: b.category_id, occurred_on: toISODate(new Date()),
@@ -72,7 +77,7 @@ export default function Bills() {
 
   const startEdit = (b: any) => {
     setEditing(b);
-    setForm({ description: b.description, amount: String(b.amount), due_date: b.due_date, category_id: b.category_id ?? "", recurrence: b.recurrence });
+    setForm({ description: b.description, amount: String(b.amount), due_date: b.due_date, category_id: b.category_id ?? "", recurrence: b.recurrence, installments_total: b.installments_total ? String(b.installments_total) : "", installments_paid: String(b.installments_paid ?? 0) });
     setOpen(true);
   };
 
@@ -115,6 +120,16 @@ export default function Bills() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Total de meses/parcelas</Label>
+                  <Input value={form.installments_total} onChange={(e) => setForm({ ...form, installments_total: e.target.value })} inputMode="numeric" placeholder="Ex: 12 (opcional)" />
+                </div>
+                <div>
+                  <Label>Já pagas</Label>
+                  <Input value={form.installments_paid} onChange={(e) => setForm({ ...form, installments_paid: e.target.value })} inputMode="numeric" placeholder="0" />
+                </div>
+              </div>
               <Button type="submit" className="w-full">Salvar</Button>
             </form>
           </DialogContent>
@@ -138,6 +153,7 @@ export default function Bills() {
                     <div className="text-xs text-muted-foreground">
                       {isPaid ? `Pago em ${formatDate(b.paid_on)}` : isOverdue ? `Atrasada ${Math.abs(days)}d` : days === 0 ? "Vence hoje" : `Em ${days}d • ${formatDate(b.due_date)}`}
                       {b.categories?.name && ` • ${b.categories.name}`}
+                      {b.installments_total ? ` • ${b.installments_paid ?? 0}/${b.installments_total} (faltam ${Math.max(0, b.installments_total - (b.installments_paid ?? 0))})` : ""}
                     </div>
                   </div>
                 </div>

@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ArrowDownCircle, ArrowUpCircle, CalendarClock, Target, Wallet2, Settings, LogOut, Wallet, PiggyBank } from "lucide-react";
+import { LayoutDashboard, ArrowDownCircle, ArrowUpCircle, CalendarClock, Target, Wallet2, Settings, LogOut, Wallet, PiggyBank, Moon, Sun } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -20,6 +21,7 @@ const mobileNav = nav.slice(0, 5);
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
 
@@ -59,6 +61,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <div className="text-sm font-medium truncate">{name || "Usuário"}</div>
               <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
             </div>
+            <Button size="icon" variant="ghost" onClick={toggle} title="Alternar tema">
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
             <Button size="icon" variant="ghost" onClick={handleLogout} title="Sair"><LogOut className="h-4 w-4" /></Button>
           </div>
         </div>
@@ -70,7 +75,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           <div className="h-8 w-8 rounded-lg gradient-primary grid place-items-center text-white"><Wallet className="h-4 w-4" /></div>
           MeuControle<span className="text-primary">+</span>
         </div>
-        <Button size="icon" variant="ghost" onClick={handleLogout}><LogOut className="h-4 w-4" /></Button>
+        <div className="flex items-center gap-1">
+          <Button size="icon" variant="ghost" onClick={toggle} title="Alternar tema">
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
+          <Button size="icon" variant="ghost" onClick={handleLogout}><LogOut className="h-4 w-4" /></Button>
+        </div>
       </header>
 
       {/* Main */}

@@ -22,6 +22,8 @@ export type Database = {
           description: string
           due_date: string
           id: string
+          installments_paid: number
+          installments_total: number | null
           notes: string | null
           paid_on: string | null
           recurrence: Database["public"]["Enums"]["bill_recurrence"]
@@ -36,6 +38,8 @@ export type Database = {
           description: string
           due_date: string
           id?: string
+          installments_paid?: number
+          installments_total?: number | null
           notes?: string | null
           paid_on?: string | null
           recurrence?: Database["public"]["Enums"]["bill_recurrence"]
@@ -50,6 +54,8 @@ export type Database = {
           description?: string
           due_date?: string
           id?: string
+          installments_paid?: number
+          installments_total?: number | null
           notes?: string | null
           paid_on?: string | null
           recurrence?: Database["public"]["Enums"]["bill_recurrence"]
