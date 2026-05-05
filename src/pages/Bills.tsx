@@ -55,9 +55,11 @@ export default function Bills() {
 
   const togglePaid = async (b: any) => {
     if (b.status === "paid") {
-      await supabase.from("bills").update({ status: "pending", paid_on: null }).eq("id", b.id);
+      const newPaid = Math.max(0, (b.installments_paid ?? 0) - 1);
+      await supabase.from("bills").update({ status: "pending", paid_on: null, installments_paid: newPaid }).eq("id", b.id);
     } else {
-      await supabase.from("bills").update({ status: "paid", paid_on: toISODate(new Date()) }).eq("id", b.id);
+      const newPaid = (b.installments_paid ?? 0) + 1;
+      await supabase.from("bills").update({ status: "paid", paid_on: toISODate(new Date()), installments_paid: newPaid }).eq("id", b.id);
       await supabase.from("transactions").insert({
         user_id: user!.id, type: "expense", amount: Number(b.amount),
         description: b.description, category_id: b.category_id, occurred_on: toISODate(new Date()),
