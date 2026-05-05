@@ -10,6 +10,7 @@ import Bills from "./pages/Bills";
 import Goals from "./pages/Goals";
 import Budgets from "./pages/Budgets";
 import Profile from "./pages/Profile";
+import History from "./pages/History";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/metas" element={<Protected><Goals /></Protected>} />
           <Route path="/orcamentos" element={<Protected><Budgets /></Protected>} />
           <Route path="/perfil" element={<Protected><Profile /></Protected>} />
+          <Route path="/historico" element={<Protected><History /></Protected>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
