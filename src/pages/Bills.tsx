@@ -120,6 +120,16 @@ export default function Bills() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Total de meses/parcelas</Label>
+                  <Input value={form.installments_total} onChange={(e) => setForm({ ...form, installments_total: e.target.value })} inputMode="numeric" placeholder="Ex: 12 (opcional)" />
+                </div>
+                <div>
+                  <Label>Já pagas</Label>
+                  <Input value={form.installments_paid} onChange={(e) => setForm({ ...form, installments_paid: e.target.value })} inputMode="numeric" placeholder="0" />
+                </div>
+              </div>
               <Button type="submit" className="w-full">Salvar</Button>
             </form>
           </DialogContent>
