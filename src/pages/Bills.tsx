@@ -22,7 +22,7 @@ export default function Bills() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
 
-  const empty: Bill = { description: "", amount: "", due_date: toISODate(new Date()), category_id: "", recurrence: "none" };
+  const empty: Bill = { description: "", amount: "", due_date: toISODate(new Date()), category_id: "", recurrence: "none", installments_total: "", installments_paid: "0" };
   const [form, setForm] = useState<Bill>(empty);
 
   const load = async () => {
