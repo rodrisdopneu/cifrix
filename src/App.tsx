@@ -34,6 +34,7 @@ const App = () => (
           <Route path="/contas" element={<Protected><Bills /></Protected>} />
           <Route path="/metas" element={<Protected><Goals /></Protected>} />
           <Route path="/orcamentos" element={<Protected><Budgets /></Protected>} />
+          <Route path="/perfil" element={<Protected><Profile /></Protected>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
