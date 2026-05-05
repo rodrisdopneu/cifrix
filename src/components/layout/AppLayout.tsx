@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { LayoutDashboard, ArrowDownCircle, ArrowUpCircle, CalendarClock, Target, Wallet2, Settings, LogOut, Wallet, PiggyBank } from "lucide-react";
+import { LayoutDashboard, ArrowDownCircle, ArrowUpCircle, CalendarClock, Target, Wallet2, Settings, LogOut, Wallet, PiggyBank, Moon, Sun } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
