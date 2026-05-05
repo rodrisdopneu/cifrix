@@ -13,7 +13,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
-type Bill = { id?: string; description: string; amount: string; due_date: string; category_id: string; recurrence: "none" | "weekly" | "monthly" | "yearly"; status?: string };
+type Bill = { id?: string; description: string; amount: string; due_date: string; category_id: string; recurrence: "none" | "weekly" | "monthly" | "yearly"; installments_total: string; installments_paid: string; status?: string };
 
 export default function Bills() {
   const { user } = useAuth();
