@@ -21,6 +21,7 @@ const mobileNav = nav.slice(0, 5);
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
   const [name, setName] = useState<string>("");
 
