@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatBRL, monthLabel, startOfMonth, endOfMonth, toISODate } from "@/lib/format";
-import { ArrowDownCircle, ArrowUpCircle, TrendingUp, TrendingDown, Sparkles, History as HistoryIcon } from "lucide-react";
+import { formatBRL, monthLabel, startOfMonth, endOfMonth, toISODate, formatDate } from "@/lib/format";
+import { ArrowDownCircle, ArrowUpCircle, TrendingUp, TrendingDown, Sparkles, History as HistoryIcon, Check, CalendarClock, AlertCircle } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LineChart, Line, ReferenceLine } from "recharts";
+import { toast } from "sonner";
 
 type MonthRow = { key: string; label: string; income: number; expense: number; balance: number; projected?: boolean };
 
@@ -13,79 +15,102 @@ export default function History() {
   const { user } = useAuth();
   const [history, setHistory] = useState<MonthRow[]>([]);
   const [projection, setProjection] = useState<MonthRow[]>([]);
+  const [futureBills, setFutureBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      if (!user) return;
-      setLoading(true);
-      const now = new Date();
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    const now = new Date();
 
-      // Past 12 months including current
-      const startRange = toISODate(startOfMonth(new Date(now.getFullYear(), now.getMonth() - 11, 1)));
-      const endRange = toISODate(endOfMonth(now));
+    const startRange = toISODate(startOfMonth(new Date(now.getFullYear(), now.getMonth() - 11, 1)));
+    const endRange = toISODate(endOfMonth(now));
 
-      const { data: tx } = await supabase
-        .from("transactions")
-        .select("amount, type, occurred_on")
-        .gte("occurred_on", startRange)
-        .lte("occurred_on", endRange);
+    const { data: tx } = await supabase
+      .from("transactions")
+      .select("amount, type, occurred_on")
+      .gte("occurred_on", startRange)
+      .lte("occurred_on", endRange);
 
-      const months: MonthRow[] = [];
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        const inMonth = (tx ?? []).filter((t: any) => t.occurred_on.startsWith(key));
-        const income = inMonth.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + Number(t.amount), 0);
-        const expense = inMonth.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + Number(t.amount), 0);
-        months.push({
-          key,
-          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-          income,
-          expense,
-          balance: income - expense,
-        });
-      }
-      setHistory(months);
+    const months: MonthRow[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const inMonth = (tx ?? []).filter((t: any) => t.occurred_on.startsWith(key));
+      const income = inMonth.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const expense = inMonth.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + Number(t.amount), 0);
+      months.push({
+        key,
+        label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+        income,
+        expense,
+        balance: income - expense,
+      });
+    }
+    setHistory(months);
 
-      // Projection: average of last up-to-6 closed months + pending bills already scheduled
-      const closed = months.slice(0, -1); // exclude current month (incomplete)
-      const sample = closed.slice(-6).filter((m) => m.income + m.expense > 0);
-      const avgIncome = sample.length ? sample.reduce((s, m) => s + m.income, 0) / sample.length : 0;
-      const avgExpense = sample.length ? sample.reduce((s, m) => s + m.expense, 0) / sample.length : 0;
+    const closed = months.slice(0, -1);
+    const sample = closed.slice(-6).filter((m) => m.income + m.expense > 0);
+    const avgIncome = sample.length ? sample.reduce((s, m) => s + m.income, 0) / sample.length : 0;
+    const avgExpense = sample.length ? sample.reduce((s, m) => s + m.expense, 0) / sample.length : 0;
 
-      // Look ahead 6 months for pending bills
-      const futureEnd = toISODate(endOfMonth(new Date(now.getFullYear(), now.getMonth() + 6, 1)));
-      const today = toISODate(now);
-      const { data: bills } = await supabase
-        .from("bills")
-        .select("amount, due_date, status")
-        .eq("status", "pending")
-        .gte("due_date", today)
-        .lte("due_date", futureEnd);
+    const futureEnd = toISODate(endOfMonth(new Date(now.getFullYear(), now.getMonth() + 6, 1)));
+    const today = toISODate(now);
+    const { data: bills } = await supabase
+      .from("bills")
+      .select("id, description, amount, due_date, status, category_id, categories(name, color)")
+      .in("status", ["pending", "overdue"])
+      .gte("due_date", today)
+      .lte("due_date", futureEnd)
+      .order("due_date");
+    setFutureBills(bills ?? []);
 
-      const proj: MonthRow[] = [];
-      for (let i = 1; i <= 6; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        const billsInMonth = (bills ?? [])
-          .filter((b: any) => b.due_date.startsWith(key))
-          .reduce((s: number, b: any) => s + Number(b.amount), 0);
-        const expense = Math.max(avgExpense, billsInMonth);
-        proj.push({
-          key,
-          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-          income: avgIncome,
-          expense,
-          balance: avgIncome - expense,
-          projected: true,
-        });
-      }
-      setProjection(proj);
-      setLoading(false);
-    };
+    const proj: MonthRow[] = [];
+    for (let i = 1; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const billsInMonth = (bills ?? [])
+        .filter((b: any) => b.due_date.startsWith(key))
+        .reduce((s: number, b: any) => s + Number(b.amount), 0);
+      const expense = Math.max(avgExpense, billsInMonth);
+      proj.push({
+        key,
+        label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+        income: avgIncome,
+        expense,
+        balance: avgIncome - expense,
+        projected: true,
+      });
+    }
+    setProjection(proj);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [user]);
+
+  const payBill = async (b: any) => {
+    if (!user) return;
+    const { error } = await supabase.from("bills").update({ status: "paid", paid_on: toISODate(new Date()) }).eq("id", b.id);
+    if (error) return toast.error(error.message);
+    await supabase.from("transactions").insert({
+      user_id: user.id, type: "expense", amount: Number(b.amount),
+      description: b.description, category_id: b.category_id, occurred_on: toISODate(new Date()),
+      notes: "Pagamento de conta",
+    });
+    toast.success("Conta marcada como paga!");
     load();
-  }, [user]);
+  };
+
+  const billsByMonth = useMemo(() => {
+    const map = new Map<string, { label: string; bills: any[]; total: number }>();
+    projection.forEach((m) => map.set(m.key, { label: m.label, bills: [], total: 0 }));
+    futureBills.forEach((b) => {
+      const key = b.due_date.slice(0, 7);
+      const entry = map.get(key);
+      if (entry) { entry.bills.push(b); entry.total += Number(b.amount); }
+    });
+    return Array.from(map.entries()).map(([key, v]) => ({ key, ...v }));
+  }, [projection, futureBills]);
 
   const combined = useMemo(() => [...history, ...projection], [history, projection]);
 
@@ -248,6 +273,56 @@ export default function History() {
                 </tbody>
               </table>
             </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarClock className="h-4 w-4 text-warning" />
+              <h3 className="font-display font-semibold">Contas futuras por mês</h3>
+            </div>
+            {futureBills.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma conta futura cadastrada para os próximos 6 meses.</p>
+            ) : (
+              <div className="space-y-5">
+                {billsByMonth.filter((m) => m.bills.length > 0).map((m) => (
+                  <div key={m.key}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="capitalize font-medium">{m.label}</div>
+                      <div className="text-sm text-muted-foreground">Total: <span className="font-semibold text-expense">{formatBRL(m.total)}</span></div>
+                    </div>
+                    <div className="rounded-lg border divide-y">
+                      {m.bills.map((b: any) => {
+                        const isOverdue = b.status === "overdue";
+                        return (
+                          <div key={b.id} className="flex items-center justify-between p-3 hover:bg-accent/30 transition-colors">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <button
+                                onClick={() => payBill(b)}
+                                title="Marcar como paga"
+                                className={`h-9 w-9 rounded-lg grid place-items-center transition-all ${isOverdue ? "bg-expense/10 text-expense hover:bg-expense/20" : "bg-warning/10 text-warning hover:bg-warning/20"}`}
+                              >
+                                {isOverdue ? <AlertCircle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                              </button>
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">{b.description}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Vence {formatDate(b.due_date)}
+                                  {b.categories?.name && ` • ${b.categories.name}`}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="font-semibold text-expense whitespace-nowrap">{formatBRL(Number(b.amount))}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {billsByMonth.every((m) => m.bills.length === 0) && (
+                  <p className="text-sm text-muted-foreground">Nenhuma conta cadastrada nos próximos 6 meses.</p>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card className="stat-card bg-primary/5 border-primary/20">
