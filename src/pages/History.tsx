@@ -54,34 +54,89 @@ export default function History() {
     const avgIncome = sample.length ? sample.reduce((s, m) => s + m.income, 0) / sample.length : 0;
     const avgExpense = sample.length ? sample.reduce((s, m) => s + m.expense, 0) / sample.length : 0;
 
-    const futureEnd = toISODate(endOfMonth(new Date(now.getFullYear(), now.getMonth() + 6, 1)));
-    const today = toISODate(now);
     const { data: bills } = await supabase
       .from("bills")
-      .select("id, description, amount, due_date, status, category_id, categories(name, color)")
+      .select("id, description, amount, due_date, status, category_id, recurrence, installments_total, installments_paid, categories(name, color)")
       .in("status", ["pending", "overdue"])
-      .gte("due_date", today)
-      .lte("due_date", futureEnd)
       .order("due_date");
-    setFutureBills(bills ?? []);
 
-    const proj: MonthRow[] = [];
+    // Build month buckets for next 6 months
+    const monthKeys: { key: string; label: string; date: Date }[] = [];
     for (let i = 1; i <= 6; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const billsInMonth = (bills ?? [])
-        .filter((b: any) => b.due_date.startsWith(key))
-        .reduce((s: number, b: any) => s + Number(b.amount), 0);
-      const expense = Math.max(avgExpense, billsInMonth);
-      proj.push({
-        key,
+      monthKeys.push({
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
         label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+        date: d,
+      });
+    }
+    const expenseByMonth = new Map<string, number>(monthKeys.map((m) => [m.key, 0]));
+    const billsByMonthMap = new Map<string, any[]>(monthKeys.map((m) => [m.key, []]));
+    const validKeys = new Set(monthKeys.map((m) => m.key));
+    const lastKey = monthKeys[monthKeys.length - 1].key;
+
+    for (const b of bills ?? []) {
+      const isAssinatura = (b as any).categories?.name === "Assinatura";
+      const amt = Number(b.amount);
+      const rec = b.recurrence as string;
+      const installmentsTotal = b.installments_total as number | null;
+      const installmentsPaid = (b.installments_paid as number) ?? 0;
+
+      let remaining: number;
+      if (rec === "monthly") {
+        remaining = installmentsTotal
+          ? Math.max(0, installmentsTotal - installmentsPaid)
+          : isAssinatura
+            ? Infinity
+            : 6;
+      } else if (rec === "weekly" || rec === "yearly") {
+        remaining = Infinity;
+      } else {
+        remaining = 1;
+      }
+
+      const occ = new Date(b.due_date + "T00:00:00");
+      let count = 0;
+      let safety = 0;
+      while (count < remaining && safety < 200) {
+        const key = `${occ.getFullYear()}-${String(occ.getMonth() + 1).padStart(2, "0")}`;
+        if (key > lastKey) break;
+        if (validKeys.has(key)) {
+          expenseByMonth.set(key, (expenseByMonth.get(key) ?? 0) + amt);
+          billsByMonthMap.get(key)!.push({
+            ...b,
+            occurrence_date: toISODate(occ),
+            is_recurring_projection: count > 0 || rec !== "none",
+          });
+        }
+        if (rec === "monthly") occ.setMonth(occ.getMonth() + 1);
+        else if (rec === "weekly") occ.setDate(occ.getDate() + 7);
+        else if (rec === "yearly") occ.setFullYear(occ.getFullYear() + 1);
+        else break;
+        count++;
+        safety++;
+      }
+    }
+
+    const futureBillsList: any[] = [];
+    monthKeys.forEach((m) => {
+      const arr = billsByMonthMap.get(m.key) ?? [];
+      arr.forEach((b) => futureBillsList.push({ ...b, _month_key: m.key, _month_label: m.label }));
+    });
+    setFutureBills(futureBillsList);
+
+    const proj: MonthRow[] = monthKeys.map((m) => {
+      const billsTotal = expenseByMonth.get(m.key) ?? 0;
+      const expense = Math.max(avgExpense, billsTotal);
+      return {
+        key: m.key,
+        label: m.label,
         income: avgIncome,
         expense,
         balance: avgIncome - expense,
         projected: true,
-      });
-    }
+      };
+    });
     setProjection(proj);
     setLoading(false);
   };
@@ -105,7 +160,7 @@ export default function History() {
     const map = new Map<string, { label: string; bills: any[]; total: number }>();
     projection.forEach((m) => map.set(m.key, { label: m.label, bills: [], total: 0 }));
     futureBills.forEach((b) => {
-      const key = b.due_date.slice(0, 7);
+      const key = b._month_key ?? b.due_date.slice(0, 7);
       const entry = map.get(key);
       if (entry) { entry.bills.push(b); entry.total += Number(b.amount); }
     });
@@ -291,22 +346,24 @@ export default function History() {
                       <div className="text-sm text-muted-foreground">Total: <span className="font-semibold text-expense">{formatBRL(m.total)}</span></div>
                     </div>
                     <div className="rounded-lg border divide-y">
-                      {m.bills.map((b: any) => {
+                      {m.bills.map((b: any, idx: number) => {
                         const isOverdue = b.status === "overdue";
+                        const isRecur = b.is_recurring_projection;
                         return (
-                          <div key={b.id} className="flex items-center justify-between p-3 hover:bg-accent/30 transition-colors">
+                          <div key={`${b.id}-${b.occurrence_date ?? idx}`} className="flex items-center justify-between p-3 hover:bg-accent/30 transition-colors">
                             <div className="flex items-center gap-3 min-w-0">
                               <button
-                                onClick={() => payBill(b)}
-                                title="Marcar como paga"
-                                className={`h-9 w-9 rounded-lg grid place-items-center transition-all ${isOverdue ? "bg-expense/10 text-expense hover:bg-expense/20" : "bg-warning/10 text-warning hover:bg-warning/20"}`}
+                                onClick={() => !isRecur && payBill(b)}
+                                disabled={isRecur}
+                                title={isRecur ? "Recorrência prevista" : "Marcar como paga"}
+                                className={`h-9 w-9 rounded-lg grid place-items-center transition-all ${isRecur ? "bg-muted text-muted-foreground cursor-default" : isOverdue ? "bg-expense/10 text-expense hover:bg-expense/20" : "bg-warning/10 text-warning hover:bg-warning/20"}`}
                               >
-                                {isOverdue ? <AlertCircle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                                {isRecur ? <CalendarClock className="h-4 w-4" /> : isOverdue ? <AlertCircle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
                               </button>
                               <div className="min-w-0">
-                                <div className="font-medium truncate">{b.description}</div>
+                                <div className="font-medium truncate">{b.description}{isRecur && <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">prevista</span>}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  Vence {formatDate(b.due_date)}
+                                  {isRecur ? `Prevista ${formatDate(b.occurrence_date)}` : `Vence ${formatDate(b.due_date)}`}
                                   {b.categories?.name && ` • ${b.categories.name}`}
                                 </div>
                               </div>
