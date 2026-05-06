@@ -346,22 +346,24 @@ export default function History() {
                       <div className="text-sm text-muted-foreground">Total: <span className="font-semibold text-expense">{formatBRL(m.total)}</span></div>
                     </div>
                     <div className="rounded-lg border divide-y">
-                      {m.bills.map((b: any) => {
+                      {m.bills.map((b: any, idx: number) => {
                         const isOverdue = b.status === "overdue";
+                        const isRecur = b.is_recurring_projection;
                         return (
-                          <div key={b.id} className="flex items-center justify-between p-3 hover:bg-accent/30 transition-colors">
+                          <div key={`${b.id}-${b.occurrence_date ?? idx}`} className="flex items-center justify-between p-3 hover:bg-accent/30 transition-colors">
                             <div className="flex items-center gap-3 min-w-0">
                               <button
-                                onClick={() => payBill(b)}
-                                title="Marcar como paga"
-                                className={`h-9 w-9 rounded-lg grid place-items-center transition-all ${isOverdue ? "bg-expense/10 text-expense hover:bg-expense/20" : "bg-warning/10 text-warning hover:bg-warning/20"}`}
+                                onClick={() => !isRecur && payBill(b)}
+                                disabled={isRecur}
+                                title={isRecur ? "Recorrência prevista" : "Marcar como paga"}
+                                className={`h-9 w-9 rounded-lg grid place-items-center transition-all ${isRecur ? "bg-muted text-muted-foreground cursor-default" : isOverdue ? "bg-expense/10 text-expense hover:bg-expense/20" : "bg-warning/10 text-warning hover:bg-warning/20"}`}
                               >
-                                {isOverdue ? <AlertCircle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                                {isRecur ? <CalendarClock className="h-4 w-4" /> : isOverdue ? <AlertCircle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
                               </button>
                               <div className="min-w-0">
-                                <div className="font-medium truncate">{b.description}</div>
+                                <div className="font-medium truncate">{b.description}{isRecur && <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">prevista</span>}</div>
                                 <div className="text-xs text-muted-foreground">
-                                  Vence {formatDate(b.due_date)}
+                                  {isRecur ? `Prevista ${formatDate(b.occurrence_date)}` : `Vence ${formatDate(b.due_date)}`}
                                   {b.categories?.name && ` • ${b.categories.name}`}
                                 </div>
                               </div>
