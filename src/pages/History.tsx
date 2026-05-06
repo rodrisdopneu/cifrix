@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatBRL, monthLabel, startOfMonth, endOfMonth, toISODate } from "@/lib/format";
-import { ArrowDownCircle, ArrowUpCircle, TrendingUp, TrendingDown, Sparkles, History as HistoryIcon } from "lucide-react";
+import { formatBRL, monthLabel, startOfMonth, endOfMonth, toISODate, formatDate } from "@/lib/format";
+import { ArrowDownCircle, ArrowUpCircle, TrendingUp, TrendingDown, Sparkles, History as HistoryIcon, Check, CalendarClock, AlertCircle } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Legend, LineChart, Line, ReferenceLine } from "recharts";
+import { toast } from "sonner";
 
 type MonthRow = { key: string; label: string; income: number; expense: number; balance: number; projected?: boolean };
 
