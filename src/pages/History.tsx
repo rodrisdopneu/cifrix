@@ -275,6 +275,56 @@ export default function History() {
             </div>
           </Card>
 
+          <Card className="p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <CalendarClock className="h-4 w-4 text-warning" />
+              <h3 className="font-display font-semibold">Contas futuras por mês</h3>
+            </div>
+            {futureBills.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma conta futura cadastrada para os próximos 6 meses.</p>
+            ) : (
+              <div className="space-y-5">
+                {billsByMonth.filter((m) => m.bills.length > 0).map((m) => (
+                  <div key={m.key}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="capitalize font-medium">{m.label}</div>
+                      <div className="text-sm text-muted-foreground">Total: <span className="font-semibold text-expense">{formatBRL(m.total)}</span></div>
+                    </div>
+                    <div className="rounded-lg border divide-y">
+                      {m.bills.map((b: any) => {
+                        const isOverdue = b.status === "overdue";
+                        return (
+                          <div key={b.id} className="flex items-center justify-between p-3 hover:bg-accent/30 transition-colors">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <button
+                                onClick={() => payBill(b)}
+                                title="Marcar como paga"
+                                className={`h-9 w-9 rounded-lg grid place-items-center transition-all ${isOverdue ? "bg-expense/10 text-expense hover:bg-expense/20" : "bg-warning/10 text-warning hover:bg-warning/20"}`}
+                              >
+                                {isOverdue ? <AlertCircle className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                              </button>
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">{b.description}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  Vence {formatDate(b.due_date)}
+                                  {b.categories?.name && ` • ${b.categories.name}`}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="font-semibold text-expense whitespace-nowrap">{formatBRL(Number(b.amount))}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {billsByMonth.every((m) => m.bills.length === 0) && (
+                  <p className="text-sm text-muted-foreground">Nenhuma conta cadastrada nos próximos 6 meses.</p>
+                )}
+              </div>
+            )}
+          </Card>
+
           <Card className="stat-card bg-primary/5 border-primary/20">
             <div className="text-sm text-muted-foreground">💡 Dica</div>
             <p className="mt-1 text-sm">
