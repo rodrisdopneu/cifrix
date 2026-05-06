@@ -19,75 +19,98 @@ export default function History() {
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
-      if (!user) return;
-      setLoading(true);
-      const now = new Date();
+    if (!user) return;
+    setLoading(true);
+    const now = new Date();
 
-      // Past 12 months including current
-      const startRange = toISODate(startOfMonth(new Date(now.getFullYear(), now.getMonth() - 11, 1)));
-      const endRange = toISODate(endOfMonth(now));
+    const startRange = toISODate(startOfMonth(new Date(now.getFullYear(), now.getMonth() - 11, 1)));
+    const endRange = toISODate(endOfMonth(now));
 
-      const { data: tx } = await supabase
-        .from("transactions")
-        .select("amount, type, occurred_on")
-        .gte("occurred_on", startRange)
-        .lte("occurred_on", endRange);
+    const { data: tx } = await supabase
+      .from("transactions")
+      .select("amount, type, occurred_on")
+      .gte("occurred_on", startRange)
+      .lte("occurred_on", endRange);
 
-      const months: MonthRow[] = [];
-      for (let i = 11; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        const inMonth = (tx ?? []).filter((t: any) => t.occurred_on.startsWith(key));
-        const income = inMonth.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + Number(t.amount), 0);
-        const expense = inMonth.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + Number(t.amount), 0);
-        months.push({
-          key,
-          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-          income,
-          expense,
-          balance: income - expense,
-        });
-      }
-      setHistory(months);
+    const months: MonthRow[] = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const inMonth = (tx ?? []).filter((t: any) => t.occurred_on.startsWith(key));
+      const income = inMonth.filter((t: any) => t.type === "income").reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const expense = inMonth.filter((t: any) => t.type === "expense").reduce((s: number, t: any) => s + Number(t.amount), 0);
+      months.push({
+        key,
+        label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+        income,
+        expense,
+        balance: income - expense,
+      });
+    }
+    setHistory(months);
 
-      // Projection: average of last up-to-6 closed months + pending bills already scheduled
-      const closed = months.slice(0, -1); // exclude current month (incomplete)
-      const sample = closed.slice(-6).filter((m) => m.income + m.expense > 0);
-      const avgIncome = sample.length ? sample.reduce((s, m) => s + m.income, 0) / sample.length : 0;
-      const avgExpense = sample.length ? sample.reduce((s, m) => s + m.expense, 0) / sample.length : 0;
+    const closed = months.slice(0, -1);
+    const sample = closed.slice(-6).filter((m) => m.income + m.expense > 0);
+    const avgIncome = sample.length ? sample.reduce((s, m) => s + m.income, 0) / sample.length : 0;
+    const avgExpense = sample.length ? sample.reduce((s, m) => s + m.expense, 0) / sample.length : 0;
 
-      // Look ahead 6 months for pending bills
-      const futureEnd = toISODate(endOfMonth(new Date(now.getFullYear(), now.getMonth() + 6, 1)));
-      const today = toISODate(now);
-      const { data: bills } = await supabase
-        .from("bills")
-        .select("amount, due_date, status")
-        .eq("status", "pending")
-        .gte("due_date", today)
-        .lte("due_date", futureEnd);
+    const futureEnd = toISODate(endOfMonth(new Date(now.getFullYear(), now.getMonth() + 6, 1)));
+    const today = toISODate(now);
+    const { data: bills } = await supabase
+      .from("bills")
+      .select("id, description, amount, due_date, status, category_id, categories(name, color)")
+      .in("status", ["pending", "overdue"])
+      .gte("due_date", today)
+      .lte("due_date", futureEnd)
+      .order("due_date");
+    setFutureBills(bills ?? []);
 
-      const proj: MonthRow[] = [];
-      for (let i = 1; i <= 6; i++) {
-        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        const billsInMonth = (bills ?? [])
-          .filter((b: any) => b.due_date.startsWith(key))
-          .reduce((s: number, b: any) => s + Number(b.amount), 0);
-        const expense = Math.max(avgExpense, billsInMonth);
-        proj.push({
-          key,
-          label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
-          income: avgIncome,
-          expense,
-          balance: avgIncome - expense,
-          projected: true,
-        });
-      }
-      setProjection(proj);
-      setLoading(false);
-    };
+    const proj: MonthRow[] = [];
+    for (let i = 1; i <= 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const billsInMonth = (bills ?? [])
+        .filter((b: any) => b.due_date.startsWith(key))
+        .reduce((s: number, b: any) => s + Number(b.amount), 0);
+      const expense = Math.max(avgExpense, billsInMonth);
+      proj.push({
+        key,
+        label: d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+        income: avgIncome,
+        expense,
+        balance: avgIncome - expense,
+        projected: true,
+      });
+    }
+    setProjection(proj);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [user]);
+
+  const payBill = async (b: any) => {
+    if (!user) return;
+    const { error } = await supabase.from("bills").update({ status: "paid", paid_on: toISODate(new Date()) }).eq("id", b.id);
+    if (error) return toast.error(error.message);
+    await supabase.from("transactions").insert({
+      user_id: user.id, type: "expense", amount: Number(b.amount),
+      description: b.description, category_id: b.category_id, occurred_on: toISODate(new Date()),
+      notes: "Pagamento de conta",
+    });
+    toast.success("Conta marcada como paga!");
     load();
-  }, [user]);
+  };
+
+  const billsByMonth = useMemo(() => {
+    const map = new Map<string, { label: string; bills: any[]; total: number }>();
+    projection.forEach((m) => map.set(m.key, { label: m.label, bills: [], total: 0 }));
+    futureBills.forEach((b) => {
+      const key = b.due_date.slice(0, 7);
+      const entry = map.get(key);
+      if (entry) { entry.bills.push(b); entry.total += Number(b.amount); }
+    });
+    return Array.from(map.entries()).map(([key, v]) => ({ key, ...v }));
+  }, [projection, futureBills]);
 
   const combined = useMemo(() => [...history, ...projection], [history, projection]);
 
