@@ -15,10 +15,10 @@ export default function History() {
   const { user } = useAuth();
   const [history, setHistory] = useState<MonthRow[]>([]);
   const [projection, setProjection] = useState<MonthRow[]>([]);
+  const [futureBills, setFutureBills] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
+  const load = async () => {
       if (!user) return;
       setLoading(true);
       const now = new Date();
