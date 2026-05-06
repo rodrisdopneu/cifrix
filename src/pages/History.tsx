@@ -160,7 +160,7 @@ export default function History() {
     const map = new Map<string, { label: string; bills: any[]; total: number }>();
     projection.forEach((m) => map.set(m.key, { label: m.label, bills: [], total: 0 }));
     futureBills.forEach((b) => {
-      const key = b.due_date.slice(0, 7);
+      const key = b._month_key ?? b.due_date.slice(0, 7);
       const entry = map.get(key);
       if (entry) { entry.bills.push(b); entry.total += Number(b.amount); }
     });
